@@ -9,6 +9,7 @@ import Int8 "mo:base/Int8";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
 import Int "mo:base/Int";
+import Buffer "mo:base/Buffer";
 
 // refers: https://docs.rs/crate/base32/0.4.0/source/src/lib.rs
 module {
@@ -30,7 +31,7 @@ module {
       case (#Crockford) { (CROCKFORD_ALPHABET, false); };
     };
     let len =(data.size() + 3)/4*5;
-    var ret: [var Nat8] = [var];
+    var ret: [var Nat8] = Array.init<Nat8>(8, 0);
     var res: Text = "";
     let chunks = bytesToChunks(data, 5);
     for (i in chunks.keys()) {
@@ -38,14 +39,16 @@ module {
       for (j in chunks[i].keys()) {
         buf[j] := chunks[i][j];
       };
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat((buf[0] & 0xF8) >> 3)]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat(((buf[0] & 0x07) << 2) | ((buf[1] & 0xC0) >> 6))]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat((buf[1] & 0x3E) >> 1)]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat(((buf[1] & 0x01) << 4) | ((buf[2] & 0xF0) >> 4))]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat(((buf[2] & 0x0F) << 1) | (buf[3] >> 7))]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat((buf[3] & 0x7C) >> 2)]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat(((buf[3] & 0x03) << 3) | ((buf[4] & 0xE0) >> 5))]]));
-      ret := Array.thaw(Array.append(Array.freeze(ret), [alpha[Nat8.toNat(buf[4] & 0x1F)]]));
+      // let retbuf: Buffer.Buffer<Nat8> = Buffer.Buffer(8);
+      // ret.add(alpha[Nat8.toNat((buf[0] & 0xF8) >> 3)]);
+      ret[0] := alpha[Nat8.toNat((buf[0] & 0xF8) >> 3)];
+      ret[1] := alpha[Nat8.toNat(((buf[0] & 0x07) << 2) | ((buf[1] & 0xC0) >> 6))];
+      ret[2] := alpha[Nat8.toNat((buf[1] & 0x3E) >> 1)];
+      ret[3] := alpha[Nat8.toNat(((buf[1] & 0x01) << 4) | ((buf[2] & 0xF0) >> 4))];
+      ret[4] := alpha[Nat8.toNat(((buf[2] & 0x0F) << 1) | (buf[3] >> 7))];
+      ret[5] := alpha[Nat8.toNat((buf[3] & 0x7C) >> 2)];
+      ret[6] := alpha[Nat8.toNat(((buf[3] & 0x03) << 3) | ((buf[4] & 0xE0) >> 5))];
+      ret[7] := alpha[Nat8.toNat(buf[4] & 0x1F)];
     };
     var len_ret: Nat = ret.size();
     if ((data.size() % 5) != 0) {
@@ -75,10 +78,13 @@ module {
     if (not is_ascii(data)) {
       return null;
     };
-    var bytes: [Nat8] = [];
+    var _bytes: [var Nat8] = Array.init<Nat8>(data.size(), 0);
+    var a : Nat = 0;
     for (i in Text.toIter(data)) {
-      bytes := Array.append(bytes, [Nat8.fromNat(Nat32.toNat(Char.toNat32(i)))]);
+      _bytes[a] := Nat8.fromNat(Nat32.toNat(Char.toNat32(i)));
+      a += 1;
     };
+    let bytes = Array.freeze(_bytes);
     let alpha = switch (alphabet) {
       case (#RFC4648 { padding }) { RFC4648_INV_ALPHABET; };
       case (#Crockford) { CROCKFORD_INV_ALPHABET; };
@@ -91,7 +97,7 @@ module {
       unpadded_bytes_length -= 1;
     };
     let output_length = unpadded_bytes_length*5/8;
-    var ret: [Nat8] = [];
+    var ret: [var Nat8] = Array.init<Nat8>(5, 0);
     let ret_len = (output_length+4)/5*5;
     let chunks = bytesToChunks(bytes, 8);
     for (i in chunks.keys()) {
@@ -102,11 +108,11 @@ module {
           case (?val) { buf[j] := Int8.toNat8(val); };
         }
       };
-      ret := Array.append(ret, [((buf[0] << 3) | (buf[1] >> 2))]);
-      ret := Array.append(ret, [((buf[1] << 6) | (buf[2] << 1) | (buf[3] >> 4))]);
-      ret := Array.append(ret, [((buf[3] << 4) | (buf[4] >> 1))]);
-      ret := Array.append(ret, [((buf[4] << 7) | (buf[5] << 2)) | (buf[6] >> 3)]);
-      ret := Array.append(ret, [((buf[6] << 5) | buf[7])]);
+      ret[0] := (buf[0] << 3) | (buf[1] >> 2);
+      ret[1] := (buf[1] << 6) | (buf[2] << 1) | (buf[3] >> 4);
+      ret[2] := (buf[3] << 4) | (buf[4] >> 1);
+      ret[3] := ((buf[4] << 7) | (buf[5] << 2)) | (buf[6] >> 3);
+      ret[4] := (buf[6] << 5) | buf[7];
     };
     var res = Array.init<Nat8>(output_length, 0);
     for (i in res.keys()) {
@@ -117,24 +123,24 @@ module {
 
   func bytesToChunks(bytes: [Nat8], interval: Nat) : [[Nat8]] {
     let len = bytes.size();
-    var ret: [[Nat8]] = [];
+    let ret : Buffer.Buffer<[Nat8]> = Buffer.Buffer(len);
     for (i in Iter.range(1, len)) {
       var chunk: [var Nat8] = Array.init<Nat8>(interval, 0);
       if (i % interval == 0) {
         for (j in Iter.range(0, interval-1)) {
           chunk[j] := bytes[i-(interval-j)];
         };
-        ret := Array.append(ret, [Array.freeze(chunk)]);
+        ret.add(Array.freeze(chunk));
       };
     };
     if (len % interval != 0) {
-      var chunk: [Nat8] = [];
+      var chunk: Buffer.Buffer<Nat8> = Buffer.Buffer(len % interval);
       for (i in Iter.range(0, (len % interval) - 1)) {
-        chunk := Array.append<Nat8>(chunk, [bytes[len - (len % interval) + i]]);
+        chunk.add(bytes[len - (len % interval) + i]);
       };
-      ret := Array.append<[Nat8]>(ret, [chunk]);
+      ret.add(chunk.toArray());
     };
-    return ret;
+    return ret.toArray();
   };
 
   func is_ascii(a: Text) : Bool {
