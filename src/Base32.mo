@@ -8,8 +8,8 @@ import Nat8 "mo:base/Nat8";
 import Int8 "mo:base/Int8";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
-import Int "mo:base/Int";
 import Buffer "mo:base/Buffer";
+import Blob "mo:base/Blob";
 
 // refers: https://docs.rs/crate/base32/0.4.0/source/src/lib.rs
 module {
@@ -78,13 +78,7 @@ module {
     if (not is_ascii(data)) {
       return null;
     };
-    var _bytes: [var Nat8] = Array.init<Nat8>(data.size(), 0);
-    var a : Nat = 0;
-    for (i in Text.toIter(data)) {
-      _bytes[a] := Nat8.fromNat(Nat32.toNat(Char.toNat32(i)));
-      a += 1;
-    };
-    let bytes = Array.freeze(_bytes);
+    let bytes = Blob.toArray(Text.encodeUtf8(data));
     let alpha = switch (alphabet) {
       case (#RFC4648 { padding }) { RFC4648_INV_ALPHABET; };
       case (#Crockford) { CROCKFORD_INV_ALPHABET; };
